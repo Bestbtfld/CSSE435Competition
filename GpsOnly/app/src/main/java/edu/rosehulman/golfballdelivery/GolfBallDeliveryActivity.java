@@ -2,8 +2,6 @@ package edu.rosehulman.golfballdelivery;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.Dialog;
-import android.app.DialogFragment;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.view.View;
@@ -19,8 +17,8 @@ import android.widget.Toast;
 
 public class GolfBallDeliveryActivity extends Activity {
 
-	/** Constant used with logging that you'll see later. */
-	public static final String TAG = "GolfBallDelivery";
+    /** Constant used with logging that you'll see later. */
+    public static final String TAG = "GolfBallDelivery";
 
     /**
      * An enum used for variables when a ball color needs to be referenced.
@@ -63,11 +61,11 @@ public class GolfBallDeliveryActivity extends Activity {
      */
     private TextView mCurrentStateTextView, mStateTimeTextView, mGpsInfoTextView, mSensorOrientationTextView,
             mGuessXYTextView, mLeftDutyCycleTextView, mRightDutyCycleTextView, mMatchTimeTextView;
-    
+
     // ---------------------- End of UI References ----------------------
 
-	
-	// ---------------------- Mission strategy values ----------------------
+
+    // ---------------------- Mission strategy values ----------------------
     /** Constants for the known locations. */
     public static final long NEAR_BALL_GPS_X = 90;
     public static final long FAR_BALL_GPS_X = 240;
@@ -83,10 +81,10 @@ public class GolfBallDeliveryActivity extends Activity {
      */
     public int mNearBallLocation, mFarBallLocation, mWhiteBallLocation;
     // ----------------- End of mission strategy values ----------------------
-	
-	
+
+
     // ---------------------------- Timing area ------------------------------
-	/**
+    /**
      * Time when the state began (saved as the number of millisecond since epoch).
      */
     private long mStateStartTime;
@@ -100,31 +98,31 @@ public class GolfBallDeliveryActivity extends Activity {
      * Constant that holds the maximum length of the match (saved in milliseconds).
      */
     private long MATCH_LENGTH_MS = 300000; // 5 minutes in milliseconds (5 * 60 * 1000)
-	// ----------------------- End of timing area --------------------------------
-	
-	
+    // ----------------------- End of timing area --------------------------------
+
+
     // ---------------------------- Driving area ---------------------------------
-	/**
+    /**
      * When driving towards a target, using a seek strategy, consider that state a success when the
      * GPS distance to the target is less than (or equal to) this value.
      */
     public static final double ACCEPTED_DISTANCE_AWAY_FT = 10.0; // Within 10 feet is close enough.
-	
-	/**
+
+    /**
      * Multiplier used during seeking to calculate a PWM value based on the turn amount needed.
      */
     private static final double SEEKING_DUTY_CYCLE_PER_ANGLE_OFF_MULTIPLIER = 3.0;  // units are (PWM value)/degrees
 
     /**
      * Variable used to cap the slowest PWM duty cycle used while seeking. Pick a value from -255 to 255.
-    */
+     */
     private static final int LOWEST_DESIRABLE_SEEKING_DUTY_CYCLE = 150;
 
     /**
      * PWM duty cycle values used with the drive straight dialog that make your robot drive straightest.
      */
     public int mLeftStraightPwmValue = 255, mRightStraightPwmValue = 255;
-	// ------------------------ End of Driving area ------------------------------
+    // ------------------------ End of Driving area ------------------------------
 
 
     @Override
@@ -182,13 +180,13 @@ public class GolfBallDeliveryActivity extends Activity {
     // --------------------------- Methods added ---------------------------
 
 
-	
-	
-	
-	
-	// --------------------------- Drive command ---------------------------
-	
-	
+
+
+
+
+    // --------------------------- Drive command ---------------------------
+
+
 
     // --------------------------- Sensor listeners ---------------------------
 
@@ -200,19 +198,14 @@ public class GolfBallDeliveryActivity extends Activity {
      * Helper method that is called by all three golf ball clicks.
      */
     private void handleBallClickForLocation(final int location) {
-        new DialogFragment() {
-            @Override
-            public Dialog onCreateDialog(Bundle savedInstanceState) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-                builder.setTitle("What was the real color?").setItems(R.array.ball_colors,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int which) {
-                                GolfBallDeliveryActivity.this.setLocationToColor(location, BallColor.values()[which]);
-                            }
-                        });
-                return builder.create();
-            }
-        }.show(getFragmentManager(), "unused tag");
+        AlertDialog.Builder builder = new AlertDialog.Builder(GolfBallDeliveryActivity.this);
+        builder.setTitle("What was the real color?").setItems(R.array.ball_colors,
+                new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        GolfBallDeliveryActivity.this.setLocationToColor(location, BallColor.values()[which]);
+                    }
+                });
+        builder.create().show();
     }
 
     /**
@@ -264,49 +257,46 @@ public class GolfBallDeliveryActivity extends Activity {
         Toast.makeText(this, "TODO: Implement handlePerformBallTest", Toast.LENGTH_SHORT).show();
     }
 
+    AlertDialog alert;
     /**
      * Clicks to the red arrow image button that should show a dialog window.
      */
     public void handleDrivingStraight(View view) {
         Toast.makeText(this, "handleDrivingStraight", Toast.LENGTH_SHORT).show();
-        new DialogFragment() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(GolfBallDeliveryActivity.this);
+        builder.setTitle("Driving Straight Calibration");
+        View dialoglayout = getLayoutInflater().inflate(R.layout.driving_straight_dialog, (ViewGroup) getCurrentFocus());
+        builder.setView(dialoglayout);
+        final NumberPicker rightDutyCyclePicker = (NumberPicker) dialoglayout.findViewById(R.id.right_pwm_number_picker);
+        rightDutyCyclePicker.setMaxValue(255);
+        rightDutyCyclePicker.setMinValue(0);
+        rightDutyCyclePicker.setValue(mRightStraightPwmValue);
+        rightDutyCyclePicker.setWrapSelectorWheel(false);
+        final NumberPicker leftDutyCyclePicker = (NumberPicker) dialoglayout.findViewById(R.id.left_pwm_number_picker);
+        leftDutyCyclePicker.setMaxValue(255);
+        leftDutyCyclePicker.setMinValue(0);
+        leftDutyCyclePicker.setValue(mLeftStraightPwmValue);
+        leftDutyCyclePicker.setWrapSelectorWheel(false);
+        Button doneButton = (Button) dialoglayout.findViewById(R.id.done_button);
+        doneButton.setOnClickListener(new OnClickListener() {
             @Override
-            public Dialog onCreateDialog(Bundle savedInstanceState) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-                builder.setTitle("Driving Straight Calibration");
-                View dialoglayout = getLayoutInflater().inflate(R.layout.driving_straight_dialog, (ViewGroup) getCurrentFocus());
-                builder.setView(dialoglayout);
-                final NumberPicker rightDutyCyclePicker = (NumberPicker) dialoglayout.findViewById(R.id.right_pwm_number_picker);
-                rightDutyCyclePicker.setMaxValue(255);
-                rightDutyCyclePicker.setMinValue(0);
-                rightDutyCyclePicker.setValue(mRightStraightPwmValue);
-                rightDutyCyclePicker.setWrapSelectorWheel(false);
-                final NumberPicker leftDutyCyclePicker = (NumberPicker) dialoglayout.findViewById(R.id.left_pwm_number_picker);
-                leftDutyCyclePicker.setMaxValue(255);
-                leftDutyCyclePicker.setMinValue(0);
-                leftDutyCyclePicker.setValue(mLeftStraightPwmValue);
-                leftDutyCyclePicker.setWrapSelectorWheel(false);
-                Button doneButton = (Button) dialoglayout.findViewById(R.id.done_button);
-                doneButton.setOnClickListener(new OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        mLeftStraightPwmValue = leftDutyCyclePicker.getValue();
-                        mRightStraightPwmValue = rightDutyCyclePicker.getValue();
-                        dismiss();
-                    }
-                });
-                final Button testStraightButton = (Button) dialoglayout.findViewById(R.id.test_straight_button);
-                testStraightButton.setOnClickListener(new OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        mLeftStraightPwmValue = leftDutyCyclePicker.getValue();
-                        mRightStraightPwmValue = rightDutyCyclePicker.getValue();
-                        Toast.makeText(GolfBallDeliveryActivity.this, "TODO: Implement the drive straight test", Toast.LENGTH_SHORT).show();
-                    }
-                });
-                return builder.create();
+            public void onClick(View v) {
+                mLeftStraightPwmValue = leftDutyCyclePicker.getValue();
+                mRightStraightPwmValue = rightDutyCyclePicker.getValue();
+                alert.dismiss();
             }
-        }.show(getFragmentManager(), "unused tag");
+        });
+        final Button testStraightButton = (Button) dialoglayout.findViewById(R.id.test_straight_button);
+        testStraightButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mLeftStraightPwmValue = leftDutyCyclePicker.getValue();
+                mRightStraightPwmValue = rightDutyCyclePicker.getValue();
+                Toast.makeText(GolfBallDeliveryActivity.this, "TODO: Implement the drive straight test", Toast.LENGTH_SHORT).show();
+            }
+        });
+        alert = builder.create();
+        alert.show();
     }
 
     /**
