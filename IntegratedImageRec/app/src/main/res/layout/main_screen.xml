@@ -105,8 +105,8 @@
         style="@style/DisplayText"
         android:layout_below="@id/golf_ball_buttons"
         android:layout_marginLeft="20dp"
-        android:layout_marginRight="20dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginRight="5dp"
+        android:layout_marginTop="5dp"
         android:text="Current state:" />
 
     <TextView
@@ -121,7 +121,7 @@
         style="@style/DisplayText"
         android:layout_below="@+id/state_label"
         android:layout_marginLeft="20dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="5dp"
         android:text="State time:" />
 
     <TextView
@@ -136,7 +136,7 @@
         style="@style/DisplayText"
         android:layout_below="@+id/state_time_label"
         android:layout_marginLeft="20dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="5dp"
         android:text="GPS info:" />
 
     <TextView
@@ -151,7 +151,7 @@
         style="@style/DisplayText"
         android:layout_below="@+id/gps_label"
         android:layout_marginLeft="20dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="5dp"
         android:text="Orientation:" />
 
     <TextView
@@ -272,6 +272,54 @@
         style="@style/DisplayText"
         android:layout_alignBaseline="@id/guess_location_label"
         android:layout_toRightOf="@id/state_label"
+        android:text="---" />
+
+    <TextView
+        android:id="@+id/left_right_location_label"
+        android:layout_below="@id/guess_location_label"
+        android:layout_marginLeft="20dp"
+        android:layout_marginTop="5dp"
+        style="@style/DisplayText"
+        android:text="Left/Right Location" />
+
+    <TextView
+        android:id="@+id/left_right_location_value"
+        android:layout_alignBaseline="@id/left_right_location_label"
+        android:layout_alignParentRight="true"
+        android:layout_marginRight="30dp"
+        style="@style/DisplayText"
+        android:text="---" />
+
+    <TextView
+        android:id="@+id/top_bottom_location_label"
+        android:layout_marginLeft="20dp"
+        android:layout_marginTop="5dp"
+        android:layout_below="@id/left_right_location_label"
+        style="@style/DisplayText"
+        android:text="Top/Bottom Location"/>
+
+    <TextView
+        android:id="@+id/top_bottom_location_value"
+        android:layout_alignBaseline="@id/top_bottom_location_label"
+        android:layout_alignParentRight="true"
+        android:layout_marginRight="30dp"
+        style="@style/DisplayText"
+        android:text="---" />
+
+    <TextView
+        android:id="@+id/size_percentage_label"
+        style="@style/DisplayText"
+        android:layout_below="@id/top_bottom_location_label"
+        android:layout_marginLeft="20dp"
+        android:layout_marginTop="5dp"
+        android:text="Size Percentage" />
+
+    <TextView
+        android:id="@+id/size_percentage_value"
+        android:layout_alignBaseline="@id/size_percentage_label"
+        android:layout_alignParentRight="true"
+        android:layout_marginRight="30dp"
+        style="@style/DisplayText"
         android:text="---" />
 
     <TextView

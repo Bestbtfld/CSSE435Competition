@@ -6,7 +6,13 @@ import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.view.View;
 import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.ViewFlipper;
 
@@ -14,9 +20,12 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.imgproc.Moments;
@@ -29,7 +38,7 @@ import edu.rosehulman.me435.RobotActivity;
  * Created by chenj4 on 5/3/2018.
  */
 
-public class ImageRecActivity extends RobotActivity implements CameraBridgeViewBase.CvCameraViewListener2{
+public class ImageRecActivity extends RobotActivity implements CameraBridgeViewBase.CvCameraViewListener2,View.OnTouchListener {
 
     public static final String TAG = "ConeFinder";
     /** References to the UI widgets used in this demo app. */
@@ -45,6 +54,7 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
             switch (status) {
                 case LoaderCallbackInterface.SUCCESS:
                     mOpenCvCameraView.enableView();
+                    mOpenCvCameraView.setOnTouchListener(ImageRecActivity.this);
                     break;
                 default:
                     super.onManagerConnected(status);
@@ -54,14 +64,13 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
     };
 
     /** Target color. An inside cone has an orange hue around 5 - 15, full saturation and value. (change as needed when outside) */
-    private static final int TARGET_COLOR_HUE = 10;
-    private static final int TARGET_COLOR_SATURATION = 255;
-    private static final int TARGET_COLOR_VALUE = 255;
+    protected int mConeTargetH = 10;
+    protected int mConeTargetS = 255;
+    protected int mConeTargetV = 255;
+    protected int mConeRangeH = 25;
+    protected int mConeRangeS = 50;
+    protected int mConeRangeV = 50;
 
-    /** Range of acceptable colors. (change as needed) */
-    private static final int TARGET_COLOR_HUE_RANGE = 25;
-    private static final int TARGET_COLOR_SATURATION_RANGE = 50;
-    private static final int TARGET_COLOR_VALUE_RANGE = 50;
 
     /** Minimum size needed to consider the target a cone. (change as needed) */
     private static final double MIN_SIZE_PERCENTAGE = 0.001;
@@ -73,6 +82,17 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
 
     protected ViewFlipper mViewFlipper;
 
+    /** Records the latest boolean value for the cone found status.  True mean cone is visible. */
+    protected boolean mConeFound;
+
+    /** If mConeFound is true, then the location and size of the cone is described by these fields. */
+    protected double mConeLeftRightLocation, mConeTopBottomLocation, mConeSize;
+
+    /** References to the UI for image rec parameters for the target and range HSV values. */
+    private EditText mTargetHEditText,  mTargetSEditText,  mTargetVEditText;
+    private SeekBar mRangeHSeekBar, mRangeSSeekBar, mRangeVSeekBar;
+    private TextView mRangeHTextView, mRangeSTextView, mRangeVTextView;
+    private Mat mRgba;
 
 
     @Override
@@ -86,6 +106,54 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
         mOpenCvCameraView = findViewById(R.id.color_blob_detection_activity_surface_view);
         mOpenCvCameraView.setCvCameraViewListener(this);
         mViewFlipper = findViewById(R.id.my_view_flipper);
+        mViewFlipper.setDisplayedChild(1);// If you uninstall the app, remove this line for the first time installing.
+        mTargetHEditText = (EditText)findViewById(R.id.target_h_edittext);
+        mTargetSEditText = (EditText)findViewById(R.id.target_s_edittext);
+        mTargetVEditText = (EditText)findViewById(R.id.target_v_edittext);
+        mRangeHSeekBar = (SeekBar)findViewById(R.id.range_h_seekbar);
+        mRangeSSeekBar = (SeekBar)findViewById(R.id.range_s_seekbar);
+        mRangeVSeekBar = (SeekBar)findViewById(R.id.range_v_seekbar);
+        mRangeHTextView = (TextView)findViewById(R.id.range_h_textview);
+        mRangeSTextView = (TextView)findViewById(R.id.range_s_textview);
+        mRangeVTextView = (TextView)findViewById(R.id.range_v_textview);
+
+        mRangeHSeekBar.setMax(255);
+        mRangeSSeekBar.setMax(255);
+        mRangeVSeekBar.setMax(255);
+
+        updateUiWidgetsFromParameters();
+
+        // Code from http://developer.android.com/guide/topics/ui/controls/text.html#ActionEvent
+        TextView.OnEditorActionListener editorActionListener = new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    updateImageParameters();
+                    return true;
+                }
+                return false;
+            }
+        };
+        mTargetHEditText.setOnEditorActionListener(editorActionListener);
+        mTargetSEditText.setOnEditorActionListener(editorActionListener);
+        mTargetVEditText.setOnEditorActionListener(editorActionListener);
+
+        SeekBar.OnSeekBarChangeListener seekBarChangeListener = new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                updateImageParameters();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {   }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {   }
+        };
+        mRangeHSeekBar.setOnSeekBarChangeListener(seekBarChangeListener);
+        mRangeSSeekBar.setOnSeekBarChangeListener(seekBarChangeListener);
+        mRangeVSeekBar.setOnSeekBarChangeListener(seekBarChangeListener);
+
 
 
         if (PackageManager.PERMISSION_GRANTED == ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)) {
@@ -99,6 +167,69 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
         }
 //        onImageRecComplete(true,-0.123, 0.456,0.789);
     }
+
+    private void updateImageParameters() {
+        // Part #1
+        // Grab values from the edit text boxes.
+        String targetHText = mTargetHEditText.getText().toString();
+        String targetSText = mTargetSEditText.getText().toString();
+        String targetVText = mTargetVEditText.getText().toString();
+        try {
+            int h = Integer.parseInt(targetHText);
+            int s = Integer.parseInt(targetSText);
+            int v = Integer.parseInt(targetVText);
+            if (h < 0 || h > 255 || s < 0 || s > 255 || v < 0 || v > 255) {
+                Log.e(TAG, "Invalid EditText box value!  Must be 0 to 255!");
+                return;
+            }
+            mConeTargetH = h;
+            mConeTargetS = s;
+            mConeTargetV = v;
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Invalid EditText box!  Must be an int value!");
+            return;
+        }
+        // Part #2
+// Grab values from the sliders
+        mConeRangeH = mRangeHSeekBar.getProgress();
+        mConeRangeS = mRangeSSeekBar.getProgress();
+        mConeRangeV = mRangeVSeekBar.getProgress();
+        mRangeHTextView.setText("" + mConeRangeH);
+        mRangeSTextView.setText("" + mConeRangeS);
+        mRangeVTextView.setText("" + mConeRangeV);
+        applyHsvTargetHsvRangeValues();
+
+    }
+
+    private void applyHsvTargetHsvRangeValues() {
+        if (mDetector != null) {
+            Scalar targetColorHsv = new Scalar(255);
+            targetColorHsv.val[0] = mConeTargetH ;
+            targetColorHsv.val[1] = mConeTargetS ;
+            targetColorHsv.val[2] = mConeTargetV ;
+            mDetector.setHsvColor(targetColorHsv);
+
+            // Setup the range of values around the color to accept.
+            Scalar colorRangeHsv = new Scalar(255);
+            colorRangeHsv.val[0] = mConeRangeH ;
+            colorRangeHsv.val[1] = mConeRangeS;
+            colorRangeHsv.val[2] = mConeRangeV;
+            mDetector.setColorRadius(colorRangeHsv);
+        }
+    }
+
+    private void updateUiWidgetsFromParameters() {
+        mTargetHEditText.setText("" + mConeTargetH);
+        mTargetSEditText.setText("" + mConeTargetS);
+        mTargetVEditText.setText("" + mConeTargetV);
+        mRangeHSeekBar.setProgress(mConeRangeH);
+        mRangeSSeekBar.setProgress(mConeRangeS);
+        mRangeVSeekBar.setProgress(mConeRangeV);
+        mRangeHTextView.setText("" + mConeRangeH);
+        mRangeSTextView.setText("" + mConeRangeS);
+        mRangeVTextView.setText("" + mConeRangeV);
+    }
+
 
     @Override
     public void onPause() {
@@ -116,6 +247,10 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
 
     /** Displays the blob target info in the text views. */
     public void onImageRecComplete(boolean coneFound, double leftRightLocation, double topBottomLocation, double sizePercentage) {
+        mConeFound = coneFound;
+        mConeLeftRightLocation = leftRightLocation;
+        mConeTopBottomLocation = topBottomLocation;
+        mConeSize = sizePercentage;
         if (coneFound) {
             mLeftRightLocationTextView.setText(String.format("%.3f", leftRightLocation));
             mTopBottomLocationTextView.setText(String.format("%.3f", topBottomLocation));
@@ -131,20 +266,10 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
     @Override
     public void onCameraViewStarted(int width, int height) {
         mDetector = new ColorBlobDetector();
+        mRgba = new Mat(height, width, CvType.CV_8UC4);
         // Now DONE: Added our stuff.
         // Setup the target color.
-        Scalar targetColorHsv = new Scalar(255);
-        targetColorHsv.val[0] = TARGET_COLOR_HUE;
-        targetColorHsv.val[1] = TARGET_COLOR_SATURATION;
-        targetColorHsv.val[2] = TARGET_COLOR_VALUE;
-        mDetector.setHsvColor(targetColorHsv);
-
-        // Setup the range of values around the color to accept.
-        Scalar colorRangeHsv = new Scalar(255);
-        colorRangeHsv.val[0] = TARGET_COLOR_HUE_RANGE;
-        colorRangeHsv.val[1] = TARGET_COLOR_SATURATION_RANGE;
-        colorRangeHsv.val[2] = TARGET_COLOR_VALUE_RANGE;
-        mDetector.setColorRadius(colorRangeHsv);
+        applyHsvTargetHsvRangeValues();
 
         // Record the screen size constants
         mCameraViewWidth = (double)width;
@@ -161,10 +286,10 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        Mat rgba = inputFrame.rgba();
-        mDetector.process(rgba);
+        mRgba = inputFrame.rgba();
+        mDetector.process(mRgba);
         List<MatOfPoint> contours = mDetector.getContours(); // For the outline
-        Imgproc.drawContours(rgba, contours, -1, CONTOUR_COLOR);
+        Imgproc.drawContours(mRgba, contours, -1, CONTOUR_COLOR);
 
         // Now DONE: Add our stuff.
         // Find the center of the cone.
@@ -177,7 +302,7 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
             // Draw a circle on the screen at the center.
             double coneCenterX = topBottomLocation * mCameraViewWidth;
             double coneCenterY = (leftRightLocation + 1.0) / 2.0 * mCameraViewHeight;
-            Imgproc.circle(rgba, new Point(coneCenterX, coneCenterY), 5, CONTOUR_COLOR, -1);
+            Imgproc.circle(mRgba, new Point(coneCenterX, coneCenterY), 5, CONTOUR_COLOR, -1);
         }
         runOnUiThread(new Runnable() {
             public void run() {
@@ -186,7 +311,7 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
         });
 
 
-        return rgba;
+        return mRgba;
     }
 
     /**
@@ -338,4 +463,56 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
         return m;
     }
 
+    @Override
+    public boolean onTouch(View v, MotionEvent event) {
+        if (mViewFlipper.getDisplayedChild() != 1) {
+            Log.d(TAG, "Don't listen for touch events if the camera is not visible.");
+            return false;
+        }
+        int cols = mRgba.cols();
+        int rows = mRgba.rows();
+
+        int xOffset = (mOpenCvCameraView.getWidth() - cols) / 2;
+        int yOffset = (mOpenCvCameraView.getHeight() - rows) / 2;
+
+        int x = (int) event.getX() - xOffset;
+        int y = (int) event.getY() - yOffset;
+
+        Log.i(TAG, "Touch image coordinates: (" + x + ", " + y + ")");
+
+        if ((x < 0) || (y < 0) || (x > cols) || (y > rows)) return false;
+
+        Rect touchedRect = new Rect();
+
+        touchedRect.x = (x > 4) ? x - 4 : 0;
+        touchedRect.y = (y > 4) ? y - 4 : 0;
+
+        touchedRect.width = (x + 4 < cols) ? x + 4 - touchedRect.x : cols - touchedRect.x;
+        touchedRect.height = (y + 4 < rows) ? y + 4 - touchedRect.y : rows - touchedRect.y;
+
+        Mat touchedRegionRgba = mRgba.submat(touchedRect);
+
+        Mat touchedRegionHsv = new Mat();
+        Imgproc.cvtColor(touchedRegionRgba, touchedRegionHsv, Imgproc.COLOR_RGB2HSV_FULL);
+
+        // Calculate average color of touched region
+        Scalar touchedHsv = Core.sumElems(touchedRegionHsv);
+        int pointCount = touchedRect.width * touchedRect.height;
+        for (int i = 0; i < touchedHsv.val.length; i++)
+            touchedHsv.val[i] /= pointCount;
+
+        //Toast.makeText(this, "HSV = " + touchedHsv, Toast.LENGTH_LONG).show();
+
+        // Set and save the color selected.  This is where the real work happens
+        mConeTargetH = (int) touchedHsv.val[0];
+        mConeTargetS = (int) touchedHsv.val[1];
+        mConeTargetV = (int) touchedHsv.val[2];
+        updateUiWidgetsFromParameters();
+        applyHsvTargetHsvRangeValues();
+
+        touchedRegionRgba.release();
+        touchedRegionHsv.release();
+
+        return false; // don't need subsequent touch events
+    }
 }

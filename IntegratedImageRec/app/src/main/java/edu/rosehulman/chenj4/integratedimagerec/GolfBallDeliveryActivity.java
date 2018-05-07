@@ -262,11 +262,15 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
         mJumboXTextView.setText(""+ (int)mGuessX);
         mJumboYTextView.setText(""+(int)mGuessY);
 
-        if (mCurrentGpsHeading != NO_HEADING){
+        if (mConeFound){
+            mJumboLinearLayout.setBackgroundColor(Color.parseColor("#ff8000"));
+        }else if (mCurrentGpsHeading != NO_HEADING){
             mJumboLinearLayout.setBackgroundColor(Color.GREEN);
         }else{
             mJumboLinearLayout.setBackgroundColor(Color.GRAY);
         }
+
+
 
         long timeRemainingSeconds = MATCH_LENGTH_MS / 1000;
         if (mState != State.READY_FOR_MISSION){
