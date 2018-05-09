@@ -39,7 +39,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentRight="true"
         android:layout_below="@id/perform_ball_test_button"
-        android:layout_marginTop="85dp"
+        android:layout_marginTop="20dp"
         android:adjustViewBounds="true"
         android:background="#0444"
         android:onClick="handleDrivingStraight"

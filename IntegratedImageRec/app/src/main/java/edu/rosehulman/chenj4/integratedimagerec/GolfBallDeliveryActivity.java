@@ -26,8 +26,13 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
     public static final String TAG = "GolfBallDelivery";
 
     public State mState;
+    private long mFirebaseUpdateCounter = 0;
+    private String allballColor = "";
+    public int YBindex=0,WKindex=0,GRindex=0;
+    public boolean isBlack = false;
+
     public enum State {
-        READY_FOR_MISSION, NEAR_BALL_SCRIPT, DRIVING_TOWARD_FAR_BALL, FAR_BALL_SCRIPT, DRIVE_TOWARD_HOME, WAIT_FOR_PICKUP, SEEKING_HOME
+        READY_FOR_MISSION, DRIVING_TOWARD_NEAR_BALL,NEAR_BALL_SCRIPT, DRIVING_TOWARD_FAR_BALL, FAR_BALL_SCRIPT, DRIVE_TOWARD_HOME, WAIT_FOR_PICKUP, SEEKING_HOME
     }
 
 
@@ -88,8 +93,10 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
     public static final long FAR_BALL_GPS_X = 240;
 
 
+
     /** Variables that will be either 50 or -50 depending on the balls we get. */
-    private double mNearBallGpsY, mFarBallGpsY;
+    protected double mNearBallGpsY;
+    private double mFarBallGpsY;
 
     /**
      * If that ball is present the values will be 1, 2, or 3.
@@ -167,26 +174,26 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
         mJumboXTextView = findViewById(R.id.jumbo_x);
         mJumboYTextView = findViewById(R.id.jumbo_y);
 
-
-
         // When you start using the real hardware you don't need test buttons.
-        boolean hideFakeGpsButtons = false;
+        boolean hideFakeGpsButtons = true;
         if (hideFakeGpsButtons) {
             TableLayout fakeGpsButtonTable = (TableLayout) findViewById(R.id.fake_gps_button_table);
             fakeGpsButtonTable.setVisibility(View.GONE);
         }
         mScripts = new Scripts(this);
-        setLocationToColor(1, BallColor.RED);
-        setLocationToColor(2, BallColor.WHITE);
-        setLocationToColor(3, BallColor.BLUE);
+//        setLocationToColor(1, BallColor.RED);
+//        setLocationToColor(2, BallColor.WHITE);
+//        setLocationToColor(3, BallColor.BLUE);
         setState(State.READY_FOR_MISSION);
 
     }
 
     public void setState(State newState) {
-        if (mState == State.READY_FOR_MISSION && newState!= State.NEAR_BALL_SCRIPT){
-            return;
-        }
+//        if (mState == State.READY_FOR_MISSION && newState!= State.NEAR_BALL_SCRIPT){
+//            return;
+//        }
+        mFirebaseRef.child("state").setValue(newState);
+
         mStateStartTime = System.currentTimeMillis();
         mCurrentStateTextView.setText(newState.name());
         speak(newState.name().replace("_", " ").toLowerCase());
@@ -199,15 +206,19 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
                 mGoOrCompleteJumboButton.setText("Go");
                 sendWheelSpeed(0,0);
                 break;
+            case DRIVING_TOWARD_NEAR_BALL:
+                mViewFlipper.setDisplayedChild(2);
+                break;
             case NEAR_BALL_SCRIPT:
                 mGpsInfoTextView.setText("---");
                 mGuessXYTextView.setText("---");
                 mScripts.nearBallScript();
-                mViewFlipper.setDisplayedChild(2);
                 break;
             case DRIVING_TOWARD_FAR_BALL:
                 break;
             case FAR_BALL_SCRIPT:
+                mGpsInfoTextView.setText("---");
+                mGuessXYTextView.setText("---");
                 mScripts.farBallScript();
                 break;
             case DRIVE_TOWARD_HOME:
@@ -219,8 +230,8 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
                 break;
         }
         mState = newState;
-    }
 
+    }
 
     /**
      * Use this helper method to set the color of a ball.
@@ -270,8 +281,6 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
             mJumboLinearLayout.setBackgroundColor(Color.GRAY);
         }
 
-
-
         long timeRemainingSeconds = MATCH_LENGTH_MS / 1000;
         if (mState != State.READY_FOR_MISSION){
             timeRemainingSeconds = (MATCH_LENGTH_MS - getMatchTimeMs())/ 1000;
@@ -279,11 +288,24 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
                 setState(State.READY_FOR_MISSION);
             }
         }
-        mMatchTimeTextView.setText(getString(R.string.time_format,timeRemainingSeconds / 60, timeRemainingSeconds % 60));
+
+        String matchTime = getString(R.string.time_format,timeRemainingSeconds / 60, timeRemainingSeconds % 60);
+        mMatchTimeTextView.setText(matchTime);
+
+        //once every 2 sec, send the match and state time to firebase
+
+        mFirebaseUpdateCounter++;
+        if (mFirebaseUpdateCounter % 20 == 0 && mState != State.READY_FOR_MISSION){
+            mFirebaseRef.child("time").child("matchTime").setValue(matchTime);
+            mFirebaseRef.child("state").child("stateTime").setValue(getStateTimeMs()/1000);
+        }
 
         switch (mState){
 
             case READY_FOR_MISSION:
+                break;
+            case DRIVING_TOWARD_NEAR_BALL:
+                seekTargetAt(NEAR_BALL_GPS_X,mNearBallGpsY);
                 break;
             case NEAR_BALL_SCRIPT:
                 break;
@@ -344,12 +366,16 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
     @Override
     public void onLocationChanged(double x, double y, double heading, Location location) {
         super.onLocationChanged(x, y, heading, location);
+        mFirebaseRef.child("gps").child("x").setValue((int)mCurrentGpsX);
+        mFirebaseRef.child("gps").child("y").setValue((int)mCurrentGpsY);
+
         String gpsInfo = getString(R.string.xy_format, mCurrentGpsX, mCurrentGpsY);
         if (mCurrentGpsHeading != NO_HEADING){
             gpsInfo += " " + getString(R.string.degrees_format, mCurrentGpsHeading);
-
+            mFirebaseRef.child("gps").child("heading").setValue((int)mCurrentGpsHeading);
         }else{
             gpsInfo += "?";
+            mFirebaseRef.child("gps").child("heading").setValue("No heading");
         }
 
         if (mCurrentGpsHeading != NO_HEADING){
@@ -361,10 +387,22 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
         gpsInfo += "  " + mGpsCounter;
         mGpsInfoTextView.setText(gpsInfo);
 
+        if (mState == State.DRIVING_TOWARD_NEAR_BALL) {
+            if (mConeSize > 0.1){
+                setState(State.NEAR_BALL_SCRIPT);
+            }else{
+                double distanceFromNearball = NavUtils.getDistance(mCurrentGpsX, mCurrentGpsY,
+                        NEAR_BALL_GPS_X, mNearBallGpsY);
+                if (distanceFromNearball < ACCEPTED_DISTANCE_AWAY_FT) {
+                    setState(State.NEAR_BALL_SCRIPT);
+                }
+            }
+        }
+
         if (mState == State.DRIVING_TOWARD_FAR_BALL) {
-            double distanceFromTarget = NavUtils.getDistance(mCurrentGpsX, mCurrentGpsY,
+            double distanceFromFarball = NavUtils.getDistance(mCurrentGpsX, mCurrentGpsY,
                     FAR_BALL_GPS_X, mFarBallGpsY);
-            if (distanceFromTarget < ACCEPTED_DISTANCE_AWAY_FT) {
+            if (distanceFromFarball < ACCEPTED_DISTANCE_AWAY_FT) {
                 setState(State.FAR_BALL_SCRIPT);
             }
         }
@@ -374,8 +412,6 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
                 setState(State.WAIT_FOR_PICKUP);
             }
         }
-
-
     }
 
     @Override
@@ -447,37 +483,102 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
      */
     public void handlePerformBallTest(View view) {
 //        Toast.makeText(this, "TODO: Implement handlePerformBallTest", Toast.LENGTH_SHORT).show();
-//        speak("TO DO Perform a ball test");
-        //this is what we really do
-        //sendCommand("CUSTOM baltest");
-
-
-        //for testing
-        onCommandReceived("1R");
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                onCommandReceived("2W");
-            }
-        }, 100);
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                onCommandReceived("3B");
-            }
-        }, 2000);
+        sendCommand("CUSTOM Perform Ball Test");
     }
 
+    private String getabbr(BallColor color){
+        if (color == BallColor.NONE){
+            return "N";
+        }else if (color == BallColor.BLACK){
+            return "K";
+        }else if (color == BallColor.WHITE){
+            return "W";
+        }else if (color == BallColor.BLUE){
+            return "B";
+        }else if (color == BallColor.YELLOW){
+            return "Y";
+        }else if (color == BallColor.GREEN){
+            return "G";
+        }else if (color == BallColor.RED) {
+            return "R";
+        }
+        return "N";
+    }
 
     @Override
     protected void onCommandReceived(String receivedCommand) {
         super.onCommandReceived(receivedCommand);
-        if(receivedCommand.equalsIgnoreCase("1R")){
-            setLocationToColor(1, BallColor.RED);
-        }else if(receivedCommand.equalsIgnoreCase("2W")) {
-            setLocationToColor(2, BallColor.WHITE);
-        }else if(receivedCommand.equalsIgnoreCase("3B")){
-            setLocationToColor(3, BallColor.BLUE);
+        super.onCommandReceived(receivedCommand);
+        String L1 = receivedCommand.substring(0,1);
+        String L2 = receivedCommand.substring(1,2);
+        String L3 = receivedCommand.substring(2,3);
+        if (L1.equalsIgnoreCase("B")){
+            mBallImageButtons[0].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.BLUE.ordinal()]);
+            mLocationColors[0] = BallColor.BLUE;
+        }else if(L1.equalsIgnoreCase("Y")){
+            mBallImageButtons[0].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.YELLOW.ordinal()]);
+            mLocationColors[0] = BallColor.YELLOW;
+        }else if(L1.equalsIgnoreCase("K")){
+            mBallImageButtons[0].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.BLACK.ordinal()]);
+            mLocationColors[0] = BallColor.BLACK;
+        }else if(L1.equalsIgnoreCase("W")){
+            mBallImageButtons[0].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.WHITE.ordinal()]);
+            mLocationColors[0] = BallColor.WHITE;
+        }else if(L1.equalsIgnoreCase("R")){
+            mBallImageButtons[0].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.RED.ordinal()]);
+            mLocationColors[0] = BallColor.RED;
+        }else if(L1.equalsIgnoreCase("G")){
+            mBallImageButtons[0].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.GREEN.ordinal()]);
+            mLocationColors[0] = BallColor.GREEN;
+        }else{
+            mBallImageButtons[0].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.NONE.ordinal()]);
+            mLocationColors[0] = BallColor.NONE;
+        }
+
+        if (L2.equalsIgnoreCase("B")){
+            mBallImageButtons[1].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.BLUE.ordinal()]);
+            mLocationColors[1] = BallColor.BLUE;
+        }else if(L2.equalsIgnoreCase("Y")){
+            mBallImageButtons[1].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.YELLOW.ordinal()]);
+            mLocationColors[1] = BallColor.YELLOW;
+        }else if(L2.equalsIgnoreCase("K")){
+            mBallImageButtons[1].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.BLACK.ordinal()]);
+            mLocationColors[1] = BallColor.BLACK;
+        }else if(L2.equalsIgnoreCase("W")){
+            mBallImageButtons[1].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.WHITE.ordinal()]);
+            mLocationColors[1] = BallColor.WHITE;
+        }else if(L2.equalsIgnoreCase("R")){
+            mBallImageButtons[1].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.RED.ordinal()]);
+            mLocationColors[1] = BallColor.RED;
+        }else if(L2.equalsIgnoreCase("G")){
+            mBallImageButtons[1].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.GREEN.ordinal()]);
+            mLocationColors[1] = BallColor.GREEN;
+        }else{
+            mBallImageButtons[1].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.NONE.ordinal()]);
+            mLocationColors[1] = BallColor.NONE;
+        }
+
+        if (L3.equalsIgnoreCase("B")){
+            mBallImageButtons[2].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.BLUE.ordinal()]);
+            mLocationColors[2] = BallColor.BLUE;
+        }else if(L3.equalsIgnoreCase("Y")){
+            mBallImageButtons[2].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.YELLOW.ordinal()]);
+            mLocationColors[2] = BallColor.YELLOW;
+        }else if(L3.equalsIgnoreCase("K")){
+            mBallImageButtons[2].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.BLACK.ordinal()]);
+            mLocationColors[2] = BallColor.BLACK;
+        }else if(L3.equalsIgnoreCase("W")){
+            mBallImageButtons[2].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.WHITE.ordinal()]);
+            mLocationColors[2] = BallColor.WHITE;
+        }else if(L3.equalsIgnoreCase("R")){
+            mBallImageButtons[2].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.RED.ordinal()]);
+            mLocationColors[2] = BallColor.RED;
+        }else if(L3.equalsIgnoreCase("G")){
+            mBallImageButtons[2].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.GREEN.ordinal()]);
+            mLocationColors[2] = BallColor.GREEN;
+        }else{
+            mBallImageButtons[2].setImageResource(BALL_DRAWABLE_RESOURCES[BallColor.NONE.ordinal()]);
+            mLocationColors[2] = BallColor.NONE;
         }
     }
 
@@ -560,12 +661,12 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
 
     public void handleFakeGpsH2(View view) {
 //        Toast.makeText(this, "TODO: Implement handleFakeGpsH2", Toast.LENGTH_SHORT).show();
-        onLocationChanged(9, 0, -170,null);
+        onLocationChanged(90, -50, -170,null);
     }
 
     public void handleFakeGpsH3(View view) {
 //        Toast.makeText(this, "TODO: Implement handleFakeGpsH3", Toast.LENGTH_SHORT).show();
-        onLocationChanged(0, -9, -170,null);
+        onLocationChanged(90, 50, -170,null);
     }
 
     public void handleSetOrigin(View view) {
@@ -592,31 +693,86 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
             mGoOrMissionCompleteButton.setText("Mission Complete!");
             mGoOrCompleteJumboButton.setBackgroundResource(R.drawable.red_button);
             mGoOrCompleteJumboButton.setText("Stop!");
-            setState(State.NEAR_BALL_SCRIPT);
+            Toast.makeText(this,"zale", Toast.LENGTH_SHORT).show();
+            setState(State.DRIVING_TOWARD_NEAR_BALL);
         }else{
             setState(State.READY_FOR_MISSION);
         }
     }
 
     private void UpdateMissionStrategyVariables() {
-        mNearBallGpsY = -50;
-        mFarBallGpsY = 50;
-        mNearBallLocation = 1;
-        mWhiteBallLocation = 0;
-        mFarBallLocation = 3;
-
-        for (int i = 0; i < 3 ; i++){
-            BallColor currentLocationColor = mLocationColors[i];
-            if (currentLocationColor == BallColor.WHITE){
-                mWhiteBallLocation = i +1;
+        allballColor = getabbr(mLocationColors[0]);
+        allballColor += getabbr(mLocationColors[1]);
+        allballColor += getabbr(mLocationColors[2]);
+        if (mOnRedTeam) {
+            if (allballColor.contains("Y")) {
+                YBindex = allballColor.indexOf("Y") + 1;
+                mFarBallGpsY = -50;
+            } else if (allballColor.contains("B")) {
+                YBindex = allballColor.indexOf("B") + 1;
+                mFarBallGpsY = 50;
             }
-        }
-        if (mOnRedTeam){
-            Log.d(TAG, "I'm on the red team");
+            if (allballColor.contains("W")) {
+                WKindex = allballColor.indexOf("W") + 1;
+            } else if (allballColor.contains("K")) {
+                WKindex = allballColor.indexOf("K") + 1;
+                isBlack = true;
+            }
+            if (allballColor.contains("G")) {
+                GRindex = allballColor.indexOf("G") + 1;
+                mNearBallGpsY = 50;
+            } else if (allballColor.contains("R")) {
+                GRindex = allballColor.indexOf("R") + 1;
+                mNearBallGpsY = -50;
+            }
+            mNearBallLocation = GRindex;
+            mFarBallLocation = YBindex;
         }else{
-            Log.d(TAG, "I'm on the blue team");
+            if (allballColor.contains("Y")) {
+                YBindex = allballColor.indexOf("Y") + 1;
+                mNearBallGpsY = 50;
+            } else if (allballColor.contains("B")) {
+                YBindex = allballColor.indexOf("B") + 1;
+                mNearBallGpsY = -50;
+            }
+            if (allballColor.contains("W")) {
+                WKindex = allballColor.indexOf("W") + 1;
+            } else if (allballColor.contains("K")) {
+                WKindex = allballColor.indexOf("K") + 1;
+                isBlack = true;
+            }
+            if (allballColor.contains("G")) {
+                GRindex = allballColor.indexOf("G") + 1;
+                mFarBallGpsY = -50;
+            } else if (allballColor.contains("R")) {
+                GRindex = allballColor.indexOf("R") + 1;
+                mFarBallGpsY = 50;
+            }
+            mNearBallLocation = YBindex;
+            mFarBallLocation = GRindex;
+        }
+        if (!isBlack){
+            mWhiteBallLocation = WKindex;
         }
 
+//        mNearBallGpsY = -50;
+//        mFarBallGpsY = 50;
+//        mNearBallLocation = 1;
+//        mWhiteBallLocation = 0;
+//        mFarBallLocation = 2;
+//
+//        for (int i = 0; i < 3 ; i++){
+//            BallColor currentLocationColor = mLocationColors[i];
+//            if (currentLocationColor == BallColor.WHITE){
+//                mWhiteBallLocation = i +1;
+//            }
+//        }
+//        if (mOnRedTeam){
+//            Log.d(TAG, "I'm on the red team");
+//        }else{
+//            Log.d(TAG, "I'm on the blue team");
+//        }
+//
         Log.d(TAG, "Near ball location:" + mNearBallLocation +" drop off at" + mNearBallGpsY);
         Log.d(TAG, "Far ball location:" + mFarBallLocation +" drop off at" + mFarBallGpsY);
         Log.d(TAG, "White ball location:" + mWhiteBallLocation);

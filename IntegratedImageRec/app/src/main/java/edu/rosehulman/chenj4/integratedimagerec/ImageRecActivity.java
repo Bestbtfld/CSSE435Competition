@@ -16,6 +16,9 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.ViewFlipper;
 
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
@@ -94,11 +97,19 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
     private TextView mRangeHTextView, mRangeSTextView, mRangeVTextView;
     private Mat mRgba;
 
+    protected DatabaseReference mFirebaseRef;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        // Write a message to the database
+//        FirebaseDatabase database = FirebaseDatabase.getInstance();
+//        DatabaseReference myRef = database.getReference("message");
+
+        mFirebaseRef = FirebaseDatabase.getInstance().getReference();
+//        sendMessage("I can use firebase");
+
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         mLeftRightLocationTextView = findViewById(R.id.left_right_location_value);
         mTopBottomLocationTextView = findViewById(R.id.top_bottom_location_value);
@@ -106,7 +117,7 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
         mOpenCvCameraView = findViewById(R.id.color_blob_detection_activity_surface_view);
         mOpenCvCameraView.setCvCameraViewListener(this);
         mViewFlipper = findViewById(R.id.my_view_flipper);
-        mViewFlipper.setDisplayedChild(1);// If you uninstall the app, remove this line for the first time installing.
+        mViewFlipper.setDisplayedChild(0);// If you uninstall the app, remove this line for the first time installing.
         mTargetHEditText = (EditText)findViewById(R.id.target_h_edittext);
         mTargetSEditText = (EditText)findViewById(R.id.target_s_edittext);
         mTargetVEditText = (EditText)findViewById(R.id.target_v_edittext);
@@ -166,6 +177,10 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
             ActivityCompat.requestPermissions(this, CAMERA_PERMISSONS, 0);
         }
 //        onImageRecComplete(true,-0.123, 0.456,0.789);
+    }
+
+    protected void sendMessage(String message) {
+        mFirebaseRef.child("message").setValue(message);
     }
 
     private void updateImageParameters() {
@@ -275,13 +290,10 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
         mCameraViewWidth = (double)width;
         mCameraViewHeight = (double)height;
         mCameraViewArea = mCameraViewWidth * mCameraViewHeight;
-
-
     }
 
     @Override
     public void onCameraViewStopped() {
-
     }
 
     @Override
@@ -309,8 +321,6 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
                 onImageRecComplete(coneFound, leftRightLocation, topBottomLocation, sizePercentage);
             }
         });
-
-
         return mRgba;
     }
 

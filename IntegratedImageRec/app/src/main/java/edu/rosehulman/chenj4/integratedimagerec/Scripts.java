@@ -2,9 +2,6 @@ package edu.rosehulman.chenj4.integratedimagerec;
 
 import android.widget.Toast;
 
-import edu.rosehulman.me435.NavUtils;
-import edu.rosehulman.me435.RobotActivity;
-
 /**
  * Created by chenj4 on 4/24/2018.
  */
@@ -30,65 +27,183 @@ public class Scripts {
     }
 
     public void nearBallScript(){
-        double distanceToNearBall = NavUtils.getDistance(15,0,90,50);
-        long driveTimeMs = (long)(distanceToNearBall / RobotActivity.DEFAULT_SPEED_FT_PER_SEC * 1000);
-
-        // For testing this has been made shorter
-        driveTimeMs = 3000;
-
-        mActivity.sendWheelSpeed(mActivity.mLeftStraightPwmValue, mActivity.mRightStraightPwmValue);
+        mActivity.sendWheelSpeed(0,0);
+        KickPosition(mActivity.mNearBallLocation,false,true);
         mCommandHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                mActivity.sendWheelSpeed(0,0);
-                removeBallAtLocation(mActivity.mNearBallLocation);
-            }
-        },driveTimeMs);
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (mActivity.mState == GolfBallDeliveryActivity.State.NEAR_BALL_SCRIPT)
                 mActivity.setState(GolfBallDeliveryActivity.State.DRIVING_TOWARD_FAR_BALL);
             }
-        }, driveTimeMs + ARM_REMOVAL_TIME);
+        },15000);
     }
 
     public void farBallScript() {
-        mActivity.sendWheelSpeed(0, 0);
-        Toast.makeText(mActivity, "Figure out which ball(s) to remove and do it.", Toast.LENGTH_SHORT).show();
-        removeBallAtLocation(mActivity.mFarBallLocation);
+        mActivity.sendWheelSpeed(0,0);
+        KickPosition(mActivity.WKindex,mActivity.isBlack,true);
         mCommandHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (mActivity.mWhiteBallLocation != 0) {
-                    removeBallAtLocation(mActivity.mWhiteBallLocation);
-                }
-                if (mActivity.mState == GolfBallDeliveryActivity.State.FAR_BALL_SCRIPT) {
-                    mActivity.setState(GolfBallDeliveryActivity.State.DRIVE_TOWARD_HOME);
-                }
+                KickPosition(mActivity.mFarBallLocation,false,true);
             }
-        }, ARM_REMOVAL_TIME);
+        },15000);
+        mCommandHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                mActivity.setState(GolfBallDeliveryActivity.State.DRIVE_TOWARD_HOME);
+            }
+        },30000);
     }
 
-    private void removeBallAtLocation(final int location){
-        mActivity.sendCommand("ATTACH 111111");
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                mActivity.sendCommand("POSITION 83 90 0 -90 90");
+    private void KickPosition(int position, boolean isBlack, boolean moveForward){
+        if (!isBlack){
+            if (position == 1){
+                mActivity.sendCommand("ATTACH 111111");
+                mActivity.sendCommand("GRIPPER 62");
+                mActivity.sendCommand("POSITION 11 65 -3 -79 72");
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 47 78 -73 -163 158");
+                    }
+                },3000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("GRIPPER 0");
+                    }
+                },5000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 47 78 -73 -90 158");
+                    }
+                },6500);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 13 160 -7 -76 158");
+                    }
+                },8000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("GRIPPER 62");
+                    }
+                },10000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("ATTACH 11111");
+                        mActivity.sendCommand("POSITION 11 65 -3 -79 72");
+                    }
+                },12000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 16 0 90 0 159");
+                    }
+                },14000);
+
+
+            }else if (position == 2){
+                mActivity.sendCommand("ATTACH 111111");
+                mActivity.sendCommand("GRIPPER 62");
+                mActivity.sendCommand("POSITION 11 65 -3 -79 72");
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 20 87 -73 -171 158");
+                    }
+                },3000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("GRIPPER 0");
+                    }
+                },5000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 20 87 -73 -90 158");
+                    }
+                },6500);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 13 160 -7 -76 158");
+                    }
+                },8000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("GRIPPER 62");
+                    }
+                },10000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("ATTACH 11111");
+                        mActivity.sendCommand("POSITION 11 65 -3 -79 72");
+                    }
+                },12000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 16 0 90 0 159");
+                    }
+                },14000);
+
+
+            }else if (position == 3){
+                mActivity.sendCommand("ATTACH 111111");
+                mActivity.sendCommand("GRIPPER 62");
+                mActivity.sendCommand("POSITION 11 65 -3 -79 72");
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION -8 89 -79 -164 158");
+                    }
+                },3000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("GRIPPER 0");
+                    }
+                },5000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION -8 89 -79 -90 158");
+                    }
+                },6500);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 13 160 -7 -76 158");
+                    }
+                },8000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("GRIPPER 62");
+                    }
+                },10000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("ATTACH 11111");
+                        mActivity.sendCommand("POSITION 11 65 -3 -79 72");
+                    }
+                },12000);
+                mCommandHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mActivity.sendCommand("POSITION 16 0 90 0 159");
+                    }
+                },14000);
             }
-        }, 20);
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                mActivity.sendCommand("POSITION 90 141 -60 -180 169");
-            }
-        }, 2000);
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                mActivity.setLocationToColor(location, GolfBallDeliveryActivity.BallColor.NONE);
-            }
-        }, ARM_REMOVAL_TIME);
+        }
+
     }
+
 }
