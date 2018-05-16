@@ -117,7 +117,7 @@ public class ImageRecActivity extends RobotActivity implements CameraBridgeViewB
         mOpenCvCameraView = findViewById(R.id.color_blob_detection_activity_surface_view);
         mOpenCvCameraView.setCvCameraViewListener(this);
         mViewFlipper = findViewById(R.id.my_view_flipper);
-        mViewFlipper.setDisplayedChild(0);// If you uninstall the app, remove this line for the first time installing.
+        mViewFlipper.setDisplayedChild(1);// If you uninstall the app, remove this line for the first time installing.
         mTargetHEditText = (EditText)findViewById(R.id.target_h_edittext);
         mTargetSEditText = (EditText)findViewById(R.id.target_s_edittext);
         mTargetVEditText = (EditText)findViewById(R.id.target_v_edittext);

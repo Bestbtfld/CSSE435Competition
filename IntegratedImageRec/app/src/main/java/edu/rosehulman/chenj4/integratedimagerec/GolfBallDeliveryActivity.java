@@ -32,7 +32,7 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
     public boolean isBlack = false;
 
     public enum State {
-        READY_FOR_MISSION, DRIVING_TOWARD_NEAR_BALL,NEAR_BALL_SCRIPT, DRIVING_TOWARD_FAR_BALL, FAR_BALL_SCRIPT, DRIVE_TOWARD_HOME, WAIT_FOR_PICKUP, SEEKING_HOME
+        READY_FOR_MISSION, INITIAL_STRAIGHT, DRIVING_TOWARD_NEAR_BALL,NEAR_BALL_SCRIPT, IMAGE_REC, DRIVING_TOWARD_FAR_BALL,FAR_BALL_SCRIPT, DRIVE_TOWARD_HOME, WAIT_FOR_PICKUP, SEEKING_HOME
     }
 
 
@@ -130,7 +130,7 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
      * When driving towards a target, using a seek strategy, consider that state a success when the
      * GPS distance to the target is less than (or equal to) this value.
      */
-    public static final double ACCEPTED_DISTANCE_AWAY_FT = 10.0; // Within 10 feet is close enough.
+    public static final double ACCEPTED_DISTANCE_AWAY_FT = 20.0; // Within 10 feet is close enough.
 
     /**
      * Multiplier used during seeking to calculate a PWM value based on the turn amount needed.
@@ -149,6 +149,8 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
     // ------------------------ End of Driving area ------------------------------
 
     private Scripts mScripts;
+
+    private State prevBallState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -205,14 +207,21 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
                 mGoOrCompleteJumboButton.setBackgroundResource(R.drawable.green_button);
                 mGoOrCompleteJumboButton.setText("Go");
                 sendWheelSpeed(0,0);
+                prevBallState = State.READY_FOR_MISSION;
+                break;
+            case INITIAL_STRAIGHT:
+                sendWheelSpeed(255,255);
                 break;
             case DRIVING_TOWARD_NEAR_BALL:
-                mViewFlipper.setDisplayedChild(2);
+//                mViewFlipper.setDisplayedChild();
                 break;
             case NEAR_BALL_SCRIPT:
                 mGpsInfoTextView.setText("---");
                 mGuessXYTextView.setText("---");
                 mScripts.nearBallScript();
+                prevBallState = State.NEAR_BALL_SCRIPT;
+                break;
+            case IMAGE_REC:
                 break;
             case DRIVING_TOWARD_FAR_BALL:
                 break;
@@ -220,6 +229,7 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
                 mGpsInfoTextView.setText("---");
                 mGuessXYTextView.setText("---");
                 mScripts.farBallScript();
+                prevBallState = State.FAR_BALL_SCRIPT;
                 break;
             case DRIVE_TOWARD_HOME:
                 break;
@@ -266,7 +276,6 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
         Log.d(TAG, "this is loop within out subclass of Robot Activity");
         mStateTimeTextView.setText(""+getStateTimeMs() / 1000);
         mGuessXYTextView.setText("(" + (int)mGuessX + ", " + (int)mGuessY + ")");
-
 //        mJumboYTextView.setText(""+(int)mCurrentGpsX);
 //        mJumboYTextView.setText("" + (int)mCurrentGpsY);
 
@@ -304,27 +313,106 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
 
             case READY_FOR_MISSION:
                 break;
+            case INITIAL_STRAIGHT:
+                mMovingForward = true;
+                mMovingStraight = true;
+                if (NavUtils.getDistance(mGuessX, mGuessY,0,0)> 40){
+                    setState(State.DRIVING_TOWARD_NEAR_BALL);
+                    sendCommand("WHEEL SPEED FORWARD 0 FORWARD 0");
+                    mMovingStraight = false;
+                }
+                break;
             case DRIVING_TOWARD_NEAR_BALL:
-                seekTargetAt(NEAR_BALL_GPS_X,mNearBallGpsY);
+                mMovingForward = true;
+                mMovingStraight = true;
+                seekTargetAt(NEAR_BALL_GPS_X ,mNearBallGpsY);
+                if (mConeFound && NavUtils.getDistance(mGuessX, mGuessY,NEAR_BALL_GPS_X, mNearBallGpsY)< 40){
+                    setState(State.IMAGE_REC);
+                }else{
+                    double distanceFromNearball = NavUtils.getDistance(mGuessX, mGuessY,NEAR_BALL_GPS_X, mNearBallGpsY);
+                    if (distanceFromNearball < ACCEPTED_DISTANCE_AWAY_FT) {
+                        setState(State.IMAGE_REC);
+                    }
+                }
                 break;
             case NEAR_BALL_SCRIPT:
+                mMovingForward = false;
+                mMovingStraight = false;
+                break;
+            case IMAGE_REC:
+                mMovingForward = true;
+                mMovingStraight = true;
+                if (!mConeFound && getStateTimeMs() > 10000){
+                    if (prevBallState == State.READY_FOR_MISSION){
+                        setState(State.NEAR_BALL_SCRIPT);
+                    }else if (prevBallState == State.NEAR_BALL_SCRIPT){
+                        setState(State.FAR_BALL_SCRIPT);
+                    }else if (prevBallState == State.FAR_BALL_SCRIPT){
+                        setState(State.WAIT_FOR_PICKUP);
+                    }
+                    break;
+                }
+                if (mConeSize > 0.08 && prevBallState == State.READY_FOR_MISSION) {
+                    setState(State.NEAR_BALL_SCRIPT);
+                    break;
+                }
+                if (mConeSize > 0.08 && prevBallState == State.NEAR_BALL_SCRIPT)  {
+                    setState(State.FAR_BALL_SCRIPT);
+                    break;
+                }
+                if (mConeSize > 0.08 && prevBallState == State.FAR_BALL_SCRIPT) {
+                    setState(State.WAIT_FOR_PICKUP);
+                    break;
+                }
+                if (mConeLeftRightLocation < -0.5) {
+                    sendWheelSpeed(150,255);
+                } else if (mConeLeftRightLocation > 0.5){
+                    sendWheelSpeed(255,150);
+                }else{
+                    sendWheelSpeed(255,255);
+                }
                 break;
             case DRIVING_TOWARD_FAR_BALL:
+                mMovingForward = true;
+                mMovingStraight = true;
                 //Todo Drive towards farball_gpsx, mFarball_gps_Y
                 seekTargetAt(FAR_BALL_GPS_X,mFarBallGpsY);
+                if (mConeFound && NavUtils.getDistance(mGuessX, mGuessY,FAR_BALL_GPS_X, mFarBallGpsY)< 50){
+                    setState(State.IMAGE_REC);
+                }else{
+                    double distanceFromFarball = NavUtils.getDistance(mGuessX, mGuessY, FAR_BALL_GPS_X, mFarBallGpsY);
+                    if (distanceFromFarball < ACCEPTED_DISTANCE_AWAY_FT) {
+                        setState(State.IMAGE_REC);
+                    }
+                }
                 break;
             case FAR_BALL_SCRIPT:
+                mMovingForward = false;
+                mMovingStraight = false;
                 break;
             case DRIVE_TOWARD_HOME:
+                mMovingForward = true;
+                mMovingStraight = true;
                 //Todo Drive towards 0,0
                 seekTargetAt(0,0);
+                if (mConeFound & NavUtils.getDistance(mGuessX, mGuessY,0, 0)< 40){
+                    setState(State.IMAGE_REC);
+                }else{
+                    if (mCurrentGpsDistance < ACCEPTED_DISTANCE_AWAY_FT) {
+                        setState(State.IMAGE_REC);
+                    }
+                }
                 break;
             case WAIT_FOR_PICKUP:
+                mMovingForward = false;
+                mMovingStraight = false;
                 if (getStateTimeMs() > 8000){
                     setState(State.SEEKING_HOME);
                 }
                 break;
             case SEEKING_HOME:
+                mMovingForward = true;
+                mMovingStraight = true;
                 seekTargetAt(0,0);
                 //Todo Drive towards 0,0
                 if (getStateTimeMs() > 8000){
@@ -387,31 +475,17 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
         gpsInfo += "  " + mGpsCounter;
         mGpsInfoTextView.setText(gpsInfo);
 
-        if (mState == State.DRIVING_TOWARD_NEAR_BALL) {
-            if (mConeSize > 0.1){
-                setState(State.NEAR_BALL_SCRIPT);
-            }else{
-                double distanceFromNearball = NavUtils.getDistance(mCurrentGpsX, mCurrentGpsY,
-                        NEAR_BALL_GPS_X, mNearBallGpsY);
-                if (distanceFromNearball < ACCEPTED_DISTANCE_AWAY_FT) {
-                    setState(State.NEAR_BALL_SCRIPT);
-                }
-            }
-        }
-
-        if (mState == State.DRIVING_TOWARD_FAR_BALL) {
-            double distanceFromFarball = NavUtils.getDistance(mCurrentGpsX, mCurrentGpsY,
-                    FAR_BALL_GPS_X, mFarBallGpsY);
-            if (distanceFromFarball < ACCEPTED_DISTANCE_AWAY_FT) {
-                setState(State.FAR_BALL_SCRIPT);
-            }
-        }
-        if (mState == State.DRIVE_TOWARD_HOME) {
+//        if (mState == State.DRIVING_TOWARD_NEAR_BALL) {
+//
+//        }
+//
+//        if (mState == State.DRIVING_TOWARD_FAR_BALL) {
+//
+//        }
+//        if (mState == State.DRIVE_TOWARD_HOME) {
             // Shorter to write since the RobotActivity already calculates the distance to 0, 0.
-            if (mCurrentGpsDistance < ACCEPTED_DISTANCE_AWAY_FT) {
-                setState(State.WAIT_FOR_PICKUP);
-            }
-        }
+
+//        }
     }
 
     @Override
@@ -693,8 +767,13 @@ public class GolfBallDeliveryActivity extends ImageRecActivity {
             mGoOrMissionCompleteButton.setText("Mission Complete!");
             mGoOrCompleteJumboButton.setBackgroundResource(R.drawable.red_button);
             mGoOrCompleteJumboButton.setText("Stop!");
-            Toast.makeText(this,"zale", Toast.LENGTH_SHORT).show();
-            setState(State.DRIVING_TOWARD_NEAR_BALL);
+            mCommandHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    sendCommand("POSITION 16 0 90 0 159");
+                }
+            },2000);
+            setState(State.INITIAL_STRAIGHT);
         }else{
             setState(State.READY_FOR_MISSION);
         }

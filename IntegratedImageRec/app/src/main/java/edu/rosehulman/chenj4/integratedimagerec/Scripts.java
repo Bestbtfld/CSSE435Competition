@@ -32,6 +32,7 @@ public class Scripts {
         mCommandHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
+                mActivity.sendCommand("ATTACH 000000");
                 mActivity.setState(GolfBallDeliveryActivity.State.DRIVING_TOWARD_FAR_BALL);
             }
         },15000);
@@ -39,23 +40,36 @@ public class Scripts {
 
     public void farBallScript() {
         mActivity.sendWheelSpeed(0,0);
-        KickPosition(mActivity.WKindex,mActivity.isBlack,true);
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                KickPosition(mActivity.mFarBallLocation,false,true);
-            }
-        },15000);
-        mCommandHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                mActivity.setState(GolfBallDeliveryActivity.State.DRIVE_TOWARD_HOME);
-            }
-        },30000);
+        if (mActivity.isBlack){
+            KickPosition(mActivity.mFarBallLocation,false,true);
+            mCommandHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mActivity.sendCommand("ATTACH 000000");
+                    mActivity.setState(GolfBallDeliveryActivity.State.DRIVE_TOWARD_HOME);
+                }
+            },15000);
+        }else{
+            KickPosition(mActivity.WKindex,mActivity.isBlack,true);
+            mCommandHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    KickPosition(mActivity.mFarBallLocation,false,true);
+                }
+            },15000);
+            mCommandHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mActivity.sendCommand("ATTACH 000000");
+                    mActivity.setState(GolfBallDeliveryActivity.State.DRIVE_TOWARD_HOME);
+                }
+            },30000);
+        }
     }
 
     private void KickPosition(int position, boolean isBlack, boolean moveForward){
         if (!isBlack){
+            mActivity.setLocationToColor(position, GolfBallDeliveryActivity.BallColor.NONE);
             if (position == 1){
                 mActivity.sendCommand("ATTACH 111111");
                 mActivity.sendCommand("GRIPPER 62");
